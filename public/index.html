@@ -6,7 +6,7 @@
     </head>
     
     <body>
-        <div id="topBar>
+        <div id="header">
             <h1 id="user"></h1>
         </div>
         
@@ -15,9 +15,9 @@
                 <ul id="messages"></ul>
             </div>
             
-            <div id="oUsersContainer">
+            <div id="userContainer">
                 <h2>Users Online</h2>
-                <ul id="usersOnline"></ul>
+                <ul id="users"></ul>
             </div>
         </div>
         
@@ -26,9 +26,15 @@
         <button>Send</button>
     </form>
     
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
-    <script src="/socket.io/socket.io.js"</script>
-    <script src="/index.js"></script>
+    <script
+        src="https://code.jquery.com/jquery-3.3.1.js"
+        integrity="sha256-2Kok7MbOyxpgUVvAk/HJ2jigOSYS2auK4Pfzbm7uH60="
+        crossorigin="anonymous"></script>
+    <script
+        src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.0.4/socket.io.js"
+        integrity="sha256-WPeFPWD3PZQUDrpFnDM1N2KadNVwCfNS4cCZ78b76T8="
+        crossorigin="anonymous"></script>
+    <script src="client.js"></script>
     
     </body>
 </html>

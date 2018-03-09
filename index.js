@@ -1,195 +1,176 @@
+/* Samuel Niu
+* 10047006
+* SENG 513 - Assignment #3
+* Web chat
+*/
+
+//Socket shenanigans
 let express = require('express');
 let app = express();
-let http = require('http').createServer(app);
+let http = require('http').Server(app);
 let io = require('socket.io')(http);
 let port = process.env.PORT || 3000;
 
-let listUser = [];
-let listMessage = [];
+// Arrays that will be used to store the connected users and the message history
+let usersList = [];
+let messagesList = [];
 
-http.listen(port,() =>{
+// Listens to port
+http.listen(port, () =>{
     console.log('listening on port: ', port);
 });
 
 app.use(express.static(__dirname + '/public'));
 
-function genRandomName(){
-    let uniqueFlag = false;
-    let count = 0;
-    while(!uniqueFlag){
-        let rNum = count;
-        let username = "User" + rNum;
-        if(!(username in listUser)){
-            listUser.append(username)
-            uniqueFlag = true;
-        } else {
-            count += 1;
-        } 
+// Listens for chat
+io.on('connection', (socket) =>{
+    // Prints to console that a user has connected
+    console.log("connected");
+    
+    // Create a user object containing name and color
+    let user = {
+        name: '',
+        color: ''        
+    };
+    
+    // Chat section, deals /nick /nickcolor and general text
+    socket.on('chat', (msg) =>{
+        let time = getDate();
         
-    }
-    return username;
-}
-
-/*
-function genRandomColor(){
-    let alphanumeric = "ABCDEF0123456789";
-    let newColor = "#";
-    let randomPick;
-    for (let i = 0; i < 6; i++){
-        randomPick = Math.floor(Math.random() * 16);
-        newColor += alphanumeric[randomPick];
-    }
-    return newColor;
-} */
-
-function getCurrentTime(){
-    let currentTime;
-    let date = new Date();
-    currentTime = date.getHours() + ":" + date.getMinutes() + " ";
-    return currentTime;    
-}
-
-function checkUniqueName(username){
-    for(i in listUser){
-        if (listUser[i] === username){
-            return false;
-        }
-    }
-    return true;
-}
-
-/*
-function checkValidColor(c){
-    return c.length === 6 && !isNaN(parseInt(c, 16));
-} */
-
-/*
-function maintainMessageLog(m){
-    if(m.length < 200){
-        listMessage.push(m);
-    } else if (m.length === 200){
-        listMessage.shift()
-        listMessage.push(m);
-    }
-} */
-
-function addListMessage(type, message, cTime, user){
-    if(type === "chat"){
-        let dupUser = {
-            nickName: user.nickName,
+        // Create message object containing timesteam, username, user color, and message
+        let message = {
+            time: time,
+            user: user.name,
             color: user.color,
+            msg: msg
         };
         
-        let oMessage = {
-            type: type,
-            message: message,
-            cTime: cTime,
-            user: dupUser,
-        };
-        
-        if (addListMessage.length === 200){
-            listMessage.shift();
-            listMessage.push(oMessage);            
-        }
-    } else {
-        let oMessage = {
-            type: type,
-            message: message,
-            cTime: cTime
-        };
-        if (addListMessage.length === 200){
-            listMessage.shift();
-            listMessage.push(oMessage);            
-        }
-    }
-}
 
-io.on('connection', function(socket){
-    console.log('a user connected');
-    let user = {};
-     
-    socket.on("init", function(username, nickColor){
-        let newUserFlag = false; //Sets new-user flag to false before running test
+        // Split text conditions and serialize chat for /nick and /nickcolor
+        let splitText = msg.split(/\s+/);
+        let ANCheck = /^[a-z0-9]+$/i;               // Alphanumeric check
+        let hexaCheck = /^[A-F0-9]{6}/i;            // Hexadecimal check
         
-        // If the user does not have a username, assign a random name and set newUser flag to true, Otherwise, assign name/color to what they were
-        if(username === null){
-            let uNickName = genRandomName();
-            user = {
-                nickname: uNickName,
-                color: "#000000"
-            };
-            socket.emit("setNickColor", "#000000");
-            newUserFlag = true;
-        } else {
-            user = {
-                nickname: username,
-                color: nickColor,
-            };
-        }
         
-        listUsers.push(user);
-        socket.emit("setUsername", user.nickname);
-        socket.emit("init", listMessage, listUsers);
-        
-        // Determine current time and update chat that a user has joined the chat
-        let cTime = getCurrentTime();
-        io.emit("systemMessage", user.nickname + " has joined the chat", cTime);
-        socket.emit("uOnlineUsers", listUsers);
-        
-        // Add the system message to the message list
-        addListMessage("systemMessage", user.nickname + " has joined the chat", cTime);
-        
-    });
-    
-    socket.on("setUsername", function(newRequested){
-        if (checkUniqueName(newRequested)){
-            let cTime = getCurrentTime();
-            io.emit("systemMessage", user.nickname + " has changed names to: " + newRequested, cTime);
-            addListMessage("systemMessage", user.nickname + " has changed names to: " + newRequested, cTime);
+        if(splitText[0] === '/nickcolor'){
+            let wantedColor = msg.substring(11);
             
-            socket.emit("setUsername", newRequested);
-            user.nickname = newRequested;
-            io.emit("uOnlineUsers", listUsers);
+            if(hexaCheck.test(wantedColor)){
+                user.color = '#' + wantedColor;
+                socket.emit('namecolorChange', user);
+                io.emit('update users', usersList)
+            }
+        } else if (splitText[0] === '/nick'){
+            let wantedName = msg.substring(6);
+            
+            if(ANCheck.test(wantedName)){
+                // create a function to check if name is already taken
+                function isUsed(object){
+                    return object.name === wantedName;
+                }
+                
+                if(usersList.find(isUsed) === undefined && wantedName.length > 0){
+                    user.name = wantedName;
+                    socket.emit('namecolorChange', user);
+                    io.emit('update users', usersList);
+                }                
+            }
+        } else if (msg.trim() === "") {
+            
         } else {
-            let cTime = getCurrentTime();
-            socket.emit("systemMessage", "The username " + newRequested + " has already been taken", cTime);
+            io.emit('chat', message);
+            if (messagesList.length < 200){
+                messagesList.push(message);
+            } else if (messageList.length === 200){
+                messagesList.shift();
+                messagesList.push(message);
+            }
         }
     });
     
-    socket.on("setNickColor", function(color){
-        user.color = color;
-        socket.emit("sysMessage", "your new color is: " + color, getCurrentTime());
-        socket.emit("setNickColor", color);
-        io.emit("uOnlineUsers", user);
+    //Deals with cookies upon rejoining website
+    socket.on('cookies', (msg) => {
+        // Decode cookie then see if the first element (name) is empty
+        let cookieName = decodeURIComponent(msg[0]);
+        
+        // If the cookie is not empty, assign name and color to user, and re-push user into users list
+        if (cookieName !== ''){
+            // Create a function that will be called to check if cookiename is already in use
+            function isUsed(object){
+                return object.name === cookieName;
+            }
+        
+            if(usersList.find(isUsed) === undefined){
+                user.name = cookieName;
+                user.color = decodeURIComponent(msg[1]);
+                usersList.push(user);
+            } else {
+                // user cookie is not empty but name their name has been taken
+                user = generateUser();
+            }
+        } else {
+            user = generateUser();
+        }
+        
+        // print message history for just joining user
+        for(i of messagesList){
+            socket.emit('chat', i);
+        }
+        socket.emit('namecolorChange', user);
+        io.emit('update users', usersList);
+        
     });
     
-    socket.on("chat", function(message){
-        let cTime = getCurrentTime();
-        io.emit("chat", user, message, ctime);
-        addListMessage("chat", message, cTime, user);
+    
+    
+    socket.on('disconnect', () => {
+        // Create a function used to find the index of the disconnected user in the users list
+        function disconnectedUserIndex(object){
+            return object.name === user.name;
+        }
+        
+        usersList.splice(usersList.findIndex(disconnectedUserIndex), 1);
+        io.emit('update users', usersList);
     });
     
-    socket.on('disconnect', function(){
-       console.log('a user disconnected'); 
-       
-       let cTime = getCurrentTime();
-       io.emit("systemMessage", user.nickname+ " has left", cTime);
-       
-       // Update listUsers by removing user who left
-       for(i in listUsers){
-           if(listUsers[i] === user.nickname){
-               listUsers.splice(i, 1);
-               break;
-           }
-       }
-       socket.broadcast.emit("uOnlineUsers", users);
-       
-    });
+    
+
 });
 
+/* Function to create a new user. Starts at "user0" and checks if this user is in the userslist.
+* If the user is already in the userslist, increments genCount and repeats
+* return value: user 
+*/
+function generateUser(){
+    let genCount = 0;
+    let newName = "user" + genCount;
+    
+    function isUsed(object){
+        return object.name === (newName);
+    }
+    
+    while(usersList.find(isUsed) !== undefined){
+        genCount++;
+        newName =  "user" + genCount;       
+    }
+    
+    let user = {
+        name: newName,
+        color: '#000000'
+    }
+    
+    usersList.push(user);
+    return user;
+}
 
-
-
-
-
-
+/* Function to get the date to use for the timestamp
+* return value: A string containing the hour,minute, and seconds value
+*/
+function getDate(){
+    let d = new Date();
+    let hour = d.getHours();
+    let minute = d.getMinutes();
+    let seconds = d.getSeconds();
+    let currentTime = hour + ":" + minute + ":" + seconds;
+    return currentTime;
+}
